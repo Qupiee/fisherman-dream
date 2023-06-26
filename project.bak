@@ -1,0 +1,491 @@
+uses wincrt, wingraph, sysutils;
+
+const esc=#27; space=#32; enter=#13; up=#72; down=#80; left=#75; right=#77;
+
+var gd,gm,count_menu,count_main,count_catch,score,i : integer; key : char; //кнопка, очки и "время"
+    fair : boolean; //для создания задержки между нажатиями
+	step_mini : integer; //потом уберется
+	anim_mini,anim_hook : animattype; //потом уберется
+	
+    ////картинки
+
+    //меню
+    arrow : animattype; //стрелка
+	menuA,menuB,menuC,menuD : pointer; //фон
+	
+	//рыбки плавают
+	fish_red_r1,fish_red_r2,fish_red_r3 : animattype; //красная рыба вправо
+	fish_red_l1,fish_red_l2,fish_red_l3 : animattype; //красная рыба влево
+	fish_yellow_r1,fish_yellow_r2 : animattype; //желтая рыба вправо
+	fish_yellow_l1,fish_yellow_l2 : animattype; //желтая рыба влево
+	fish_green_r1,fish_green_r2 : animattype; //зеленая рыба вправо 
+	fish_green_l1,fish_green_l2 : animattype; //зеленая рыба влево
+	dolp_up,dolp_down,ship : animattype; //доп. события
+	cross : animattype; //прицел
+	rod : animattype; //замах
+	rod1,rod2,rod3 : pointer; //удочка
+	b1,b2,b3,b4 : pointer; //вода
+	
+	//ловля
+	hook,mini,lamp_on,lamp_off : animattype; //крючок, рыбка, лампы
+	catchbar1,catchbar2 : pointer; //анимация ловли
+	bonus : integer; //прибавляемые очки
+	w1,w2,w3,w4,w5,w6,w7 : integer; //числа для сравнения
+	
+	////данные
+	
+	//меню
+	width_ar,height_ar,step_ar,x_ar,y_ar : integer; //стрелка
+	
+	//рыбки плавают
+	width_fish,height_fish : integer;
+    step_red : array [1..4] of integer;
+	step_yellow : array [1..4] of integer;
+	step_green : array [1..4] of integer;
+	x_f_red_r1,y_f_red_r1 : integer;
+	  x_f_red_l1,y_f_red_l1 : integer;
+	x_f_red_r2,y_f_red_r2 : integer;
+	  x_f_red_l2,y_f_red_l2 : integer;
+	x_f_yellow_r1,y_f_yellow_r1 : integer;
+	  x_f_yellow_r2,y_f_yellow_r2 : integer;
+	x_f_yellow_l1,y_f_yellow_l1 : integer;
+	  x_f_yellow_l2,y_f_yellow_l2 : integer;
+	x_f_green_r1,y_f_green_r1 : integer;
+	  x_f_green_r2,y_f_green_r2 : integer;
+	x_f_green_l1,y_f_green_l1 : integer;
+	  x_f_green_l2,y_f_green_l2 : integer;
+	//дельфин
+	width_dolp,height_dolp,step_dolp,x_dolp,y_dolp : integer;
+	//корабль
+	width_ship,height_ship,step_ship,x_ship,y_ship : integer;
+	//прицел
+	width_cross,height_cross,step_cross,x_cross,y_cross : integer;
+	//удочка
+	width_rod,height_rod,x_rod,y_rod : integer;
+	//крючок
+	width_hook,height_hook,up_hook,down_hook,x_hook,y_hook : integer;
+	//рыбка
+	width_mini,height_mini,step_mini1,step_mini2,step_mini3,x_mini,y_mini : integer;
+	//лампы
+	width_lamp,height_lamp,x_lamp,y_lamp : integer;
+
+//позволяет обратится к процедуре "меню" в любой строке кода
+//procedure menu; forward;
+
+//загрузка файла
+function loader(filename:string):pointer;
+  var f:file; size:longint; p:pointer;
+    begin
+       assign(f,filename);
+       if fileexists(filename) then
+         begin
+            reset(f,1);
+            size:=filesize(f);
+            getmem(p,size);
+            blockread(f,p^,size);
+            close(f);
+            loader:=p
+         end;
+    end;
+
+//загрузка изображения
+procedure newanim(width,height:integer; filename:string; var anim:animattype; col:longint);
+  var p:pointer;
+    begin
+       p:=loader(filename);
+       cleardevice;
+       setfillstyle(1,col);
+       bar(0,0,getmaxX,getmaxY);
+       putimage(0,0,p^,0);
+       getanim(0,0,width,height,col,anim);
+       freemem(p);
+       cleardevice;
+    end;
+
+//инициализация изображений	
+procedure initpict;
+  begin
+     menuA:=loader('mA.bmp');
+	  menuB:=loader('mB.bmp');
+	   menuC:=loader('mC.bmp');
+	    menuD:=loader('mD.bmp');
+		
+	 rod1:=loader('fp1.bmp');
+	  rod2:=loader('fp2.bmp');
+	   rod3:=loader('fp3.bmp');
+	   
+	 b1:=loader('bk1.bmp');
+	  b2:=loader('bk2.bmp');
+	   b3:=loader('bk3.bmp');
+	    b4:=loader('bk4.bmp');
+		
+	 catchbar1:=loader('bar.bmp');
+	  catchbar2:=loader('bar_anim.bmp');
+	  
+	 newanim(width_fish,height_fish,'rr.bmp',fish_red_r1,white);
+	  newanim(width_fish,height_fish,'rr.bmp',fish_red_r2,white);
+	 newanim(width_fish,height_fish,'rl.bmp',fish_red_l1,white);
+	  newanim(width_fish,height_fish,'rl.bmp',fish_red_l2,white);
+	   
+	 newanim(width_fish,height_fish,'yr.bmp',fish_yellow_r1,white);
+      newanim(width_fish,height_fish,'yr.bmp',fish_yellow_r2,white);
+	 newanim(width_fish,height_fish,'yl.bmp',fish_yellow_l1,white);
+	  newanim(width_fish,height_fish,'yl.bmp',fish_yellow_l2,white);
+	  
+	 newanim(width_fish,height_fish,'gr.bmp',fish_green_r1,white);
+	  newanim(width_fish,height_fish,'gr.bmp',fish_green_r2,white);
+	 newanim(width_fish,height_fish,'gl.bmp',fish_green_l1,white);
+	  newanim(width_fish,height_fish,'gl.bmp',fish_green_l2,white);
+	   
+	 newanim(width_dolp,height_dolp,'dl_u.bmp',dolp_up,white);
+	  newanim(width_dolp,height_dolp,'dl_d.bmp',dolp_down,white);
+	  
+	 newanim(width_ship,height_ship,'ch.bmp',ship,skyblue);
+	 newanim(width_cross,height_cross,'cr.bmp',cross,white);
+	 
+	 newanim(width_rod,height_rod,'fp_a.bmp',rod,white);
+	 
+	 newanim(width_hook,height_hook,'hook.bmp',hook,white);
+	 
+	 newanim(width_mini,height_mini,'mini.bmp',mini,white);
+	 
+	 newanim(width_lamp,height_lamp,'lr.bmp',lamp_off,white);
+	  newanim(width_lamp,height_lamp,'lg.bmp',lamp_on,white);
+  end;
+
+//инициализация данных  
+procedure initdata;
+  begin
+     width_ar:=70; height_ar:=40; step_ar:=100; x_ar:=getmaxX div 2 -140; y_ar:=300;
+	 
+	 width_fish:=32; height_fish:=32; 
+	 
+     for i:=1 to 4 do step_red[i]:=1+i;
+	 for i:=1 to 4 do step_yellow[i]:=2+i;
+	 for i:=1 to 4 do step_green[i]:=3+i;
+	 
+	 x_f_red_r1:= -320 +random(-280+320); y_f_yellow_r1:=296 +random(264-296);
+	   x_f_red_l1:=(getmaxx +320) +random(280-320); y_f_green_l1:=328 +random(296-328);
+	   
+	 x_f_red_r2:= -280 +random(-240+280); y_f_red_r2:=360 +random(328-360);
+	   x_f_red_l2:= (getmaxx +280) +random(240-280); y_f_yellow_l1:=392 +random(360-392);
+
+     x_f_yellow_r1:= -240 +random(-200+240); y_f_green_r1:=424 +random(392-424);	
+       x_f_yellow_l1:= (getmaxx +240) +random(200-240); y_f_red_r1:=456 +random(424-456);
+
+     x_f_yellow_r2:= -200 +random(-160+200); y_f_yellow_r2:=488 +random(456-488);
+       x_f_yellow_l2:= (getmaxx +200) +random(160-200); y_f_green_l2:=520 +random(488-520);	
+
+     x_f_green_r1:= -160 +random(-120+160); y_f_green_r2:=552 +random(520-552);	   
+	   x_f_green_l1:= (getmaxx +160) +random(120-160); y_f_red_l1:=584 +random(552-584);
+	   
+	 x_f_green_r2:= -120 +random(-80+120); y_f_red_l2:=616 +random(584-616);
+	   x_f_green_l2:= (getmaxx +120) +random(80-120); y_f_yellow_l2:=648 +random(616-648); 
+	 
+	 width_dolp:=40; height_dolp:=84; step_dolp:=2; 
+	 x_dolp:=getmaxx div 2 -100; y_dolp:=getmaxy div 2 -100;
+	 
+	 width_ship:=252; height_ship:=94; step_ship:=4; 
+	 x_ship:=getmaxx div 2 -200; y_ship:=getmaxy div 2 -200;
+	 
+	 width_cross:=22; height_cross:=22; step_cross:=10; 
+	 x_cross:= getmaxx div 2; y_cross:= getmaxy +20;
+	 
+	 width_rod:=110; height_rod:=190; x_rod:=getmaxx div 2 -190; y_rod:=getmaxy -190;
+	 
+	 width_hook:=40; height_hook:=50; up_hook:=20; down_hook:=5;
+	 x_hook:=getmaxX div 2 +70; y_hook:=getmaxY div 2;
+	 
+	 width_mini:=40; height_mini:=28; step_mini1:=7; step_mini2:=9; step_mini3:=11;
+	 x_mini:=getmaxX div 2 +70; y_mini:=getmaxY div 2 -70;
+	 
+	 width_lamp:=35; height_lamp:=36; 
+	 x_lamp:=getmaxX div 2 -12; y_lamp:=getmaxY div 2 +60;
+	 
+	 count_menu:=0; count_main:=60; count_catch:=150;
+  end;
+ 
+//управление прицелом, с помощью стрелок 
+procedure control(var x_cross,y_cross:integer; width_cross,height_cross,step_cross:integer; anim:animattype);
+  begin
+     putanim(x_cross,y_cross,cross,bkgput);
+     if keypressed then key:=readkey;
+     if key=#0 then
+       begin
+          key:=readkey;
+          case key of
+               up: if (y_cross>0) and (y_cross>getmaxY div 2 -80) then y_cross:=y_cross -step_cross;
+               down: if (y_cross<getmaxY -step_cross -height_cross) then y_cross:=y_cross +step_cross;
+               right: if (x_cross<getmaxX -width_cross -step_cross) then x_cross:=x_cross +step_cross;
+               left: if (x_cross>0 +step_cross) then x_cross:=x_cross -step_cross;
+          end;
+       end;
+     putanim(x_cross,y_cross,cross,transput);
+     updategraph(updatenow);
+  end;
+  
+////процедуры, которые отвечают за движение рыб  
+ 
+procedure redmove_r1(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x +step;
+	   if x > getmaxx then x:=0;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure redmove_r2(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x +step;
+	   if x > getmaxx then x:=0;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure redmove_l1(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x -step;
+	   if x < 0 then x:=getmaxx;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure redmove_l2(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x -step;
+	   if x < 0 then x:=getmaxx;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure yellowmove_r1(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x +step;
+	   if x > getmaxx then x:=0;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure yellowmove_r2(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x +step;
+	   if x > getmaxx then x:=0;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure yellowmove_l1(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x -step;
+	   if x < 0 then x:=getmaxx;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure yellowmove_l2(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x -step;
+	   if x < 0 then x:=getmaxx;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure greenmove_r1(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x +step;
+	   if x > getmaxx then x:=0;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure greenmove_r2(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x +step;
+	   if x > getmaxx then x:=0;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure greenmove_l1(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x -step;
+	   if x < 0 then x:=getmaxx;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+  
+procedure greenmove_l2(var x,step:integer; y:integer; anim:animattype);
+  begin
+     putanim(x,y,anim,bkgput);
+	   x:=x -step;
+	   if x < 0 then x:=getmaxx;
+	 putanim(x,y,anim,transput);
+	 updategraph(updatenow);
+  end;
+
+//объединяет всё движение  
+procedure move;
+  begin
+     redmove_r1(x_f_red_r1,step_red[1],y_f_red_r1,fish_red_r1);
+	 redmove_r2(x_f_red_r2,step_red[2],y_f_red_r2,fish_red_r2);
+	 redmove_l1(x_f_red_l1,step_red[3],y_f_red_l1,fish_red_l1);
+	 redmove_l2(x_f_red_l2,step_red[4],y_f_red_l2,fish_red_l2);
+	 yellowmove_r1(x_f_yellow_r1,step_yellow[1],y_f_yellow_r1,fish_yellow_r1);
+	 yellowmove_r2(x_f_yellow_r2,step_yellow[2],y_f_yellow_r2,fish_yellow_r2);
+	 yellowmove_l1(x_f_yellow_l1,step_yellow[3],y_f_yellow_l1,fish_yellow_l1);
+	 yellowmove_l2(x_f_yellow_l2,step_yellow[4],y_f_yellow_l2,fish_yellow_l2);
+	 greenmove_r1(x_f_green_r1,step_green[1],y_f_green_r1,fish_green_r1);
+	 greenmove_r2(x_f_green_r2,step_green[2],y_f_green_r2,fish_green_r2);
+	 greenmove_l1(x_f_green_l1,step_green[3],y_f_green_l1,fish_green_l1);
+	 greenmove_l2(x_f_green_l2,step_green[4],y_f_green_l2,fish_green_l2);
+  end;
+
+//вода  
+procedure background;
+  begin
+     if (count_main>=60) and (count_main<120) then putimage(0,0,b1^,0);
+	 if (count_main>180) and (count_main<240) then putimage(0,0,b2^,0);
+	 if (count_main>240) and (count_main<300) then putimage(0,0,b3^,0);
+	 if (count_main>360) and (count_main<420) then putimage(0,0,b4^,0);
+	 if (count_main>480) and (count_main<540) then putimage(0,0,b3^,0);
+	 if (count_main>540) and (count_main<=600) then putimage(0,0,b2^,0);
+	 if count_main>600 then count_main:=100;
+  end;
+
+//визуальное отображение во время ловли и прибавление очков  
+procedure lamps; 
+var s:string;
+  begin
+     putanim(x_lamp,y_lamp,lamp_off,transput);
+     putanim(x_lamp,y_lamp +45,lamp_off,transput);
+     putanim(x_lamp,y_lamp +90,lamp_off,transput);
+	 if (count_catch>w1)and(count_catch<=w2) then putanim(x_lamp,y_lamp,lamp_on,transput);
+         if (count_catch>w3)and(count_catch<=w4) then 
+		   begin 
+		     putanim(x_lamp,y_lamp,lamp_on,transput); 
+		     putanim(x_lamp,y_lamp +45,lamp_on,transput);
+		   end;
+         if (count_catch>w5)and(count_catch<=w6) then 
+		   begin 
+		     putanim(x_lamp,y_lamp,lamp_on,transput); 
+			 putanim(x_lamp,y_lamp +45,lamp_on,transput); 
+			 putanim(x_lamp,y_lamp +90,lamp_on,transput); 
+		   end;
+         if (count_catch>w7) then  
+		   begin
+	         putanim(x_lamp,y_lamp,lamp_on,transput);
+			 putanim(x_lamp,y_lamp +45,lamp_on,transput);
+             putanim(x_lamp,y_lamp +90,lamp_on,transput);
+			    score:=score +bonus;
+                str(score,s);
+             repeat
+                cleardevice;
+                settextstyle(1,0,5);
+                outtextXY(getmaxX div 2 -60,getmaxY div 2 -50,'Success');
+                outtextXY(getmaxX div 2 -90,getmaxY div 2 +10,'Score earned');
+                outtextXY(getmaxX div 2 -45,getmaxY div 2 +60,s);
+                key:=readkey;
+             until key=esc;
+           end;
+  end;
+
+//проигрыш  
+procedure fail;
+  begin
+     if count_catch<=0 then
+     repeat
+       cleardevice;
+       settextstyle(1,0,5);
+       outtextXY(getmaxX div 2 -100,getmaxY div 2,'The fish broke');
+       key:=readkey;
+     until key=esc;
+  end;
+ 
+//движение рыбки 
+procedure minimove;
+  begin
+       if (y_mini<120) or (y_mini>getmaxY -130) then step_mini:= -step_mini;
+       y_mini:=y_mini +step_mini;
+     putanim(x_mini,y_mini,anim_mini,transput);
+  end;
+
+//падение крючка  
+procedure catchingdown; 
+  begin
+     if (y_hook>getmaxy -130) or (y_hook<0 +130) then y_rod:=y_hook +down_hook;
+     y_hook:=y_hook +down_hook;
+     putanim(x_hook,y_hook,anim_hook,transput);
+  end;
+
+//поднятие крючка  
+procedure catching;
+  begin
+     putanim(x_hook,y_hook,anim_hook,bkgput);
+            key:=readkey;
+            if key=space then if (y_rod>0 +130) and (y_hook<getmaxy) then 
+			  begin 
+			    y_hook:=y_hook -up_hook;
+				fair:=true; 
+			  end;
+            if (key=enter) {and (check(y_hook,y_mini))}and(fair) then 
+			  begin count_catch:=count_catch +30; fair:=false; end;
+            fair:=true;
+     putanim(x_hook,y_hook,anim_hook,transput);
+  end;
+
+//анимация ловли 
+procedure fishrod;
+  begin
+    if count_menu<15 then putimage(getmaxx div 2 -255,getmaxy div 2,catchbar1^,0);
+	if count_menu>15 then putimage(getmaxx div 2 -255,getmaxy div 2,catchbar2^,0);
+	if count_menu>30 then count_menu:=0;
+	updategraph(updatenow);
+  end;
+  
+{procedure catch();
+  begin
+     fishrod;
+     lamps;
+	 fail;
+	 minimove;
+	 catchingdown; 
+	 catching;
+  end;}
+  
+procedure game;
+  begin
+     count_main:=count_main +10;
+	 count_catch:=count_catch -1;
+	 count_menu:=count_menu +1;
+     delay(15);
+	 background;
+	 move;
+       if keypressed then control(x_cross,y_cross,width_cross,height_cross,step_cross,cross);
+	       putanim(x_cross,y_cross,cross,bkgput);
+	       putanim(x_cross,y_cross,cross,transput);
+  end;
+   
+begin
+   cleardevice;
+   randomize;
+   setwindowsize(800,700);
+   gd:=nopalette; gm:=mcustom;
+   initgraph(gd,gm,'');
+   initdata;
+   initpict;
+   repeat
+     game;
+   until key=esc;
+end.
+  
